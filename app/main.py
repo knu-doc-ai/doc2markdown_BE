@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
+from app.api.documents import router as documents_router
 
 app = FastAPI(title="DtoM Backend API", version="1.0.0")
 
@@ -15,6 +16,7 @@ app.add_middleware(
 
 # Connect the modular routers
 app.include_router(api_router, prefix="/api")
+app.include_router(documents_router)
 
 @app.get("/health", tags=["Health"])
 def health_check():
