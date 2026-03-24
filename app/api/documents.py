@@ -1,6 +1,9 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, status
-from app.schemas.document_schema import DocumentUploadResponse
-from app.services.file_service import save_uploaded_file
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
+from pathlib import Path
+
+from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse
+from app.services.file_service import save_uploaded_file, STORAGE_DIR
+from app.services.convert_service import process_conversion
 
 router = APIRouter(
     prefix="/documents",
@@ -34,3 +37,19 @@ async def upload_document(file: UploadFile = File(...)):
         fileName=file.filename,
         status="UPLOADED"
     )
+
+@router.post("/{document_id}/convert", response_model=ConvertResponse, status_code=status.HTTP_202_ACCEPTED)
+async def convert_document(document_id: str, request: ConvertRequest, background_tasks: BackgroundTasks):
+    doc_dir = STORAGE_DIR / document_id
+    pdf_path = doc_dir / "original.pdf"
+    meta_path = doc_dir / "meta.json"
+
+    # 1. 문서 및 파일 존재 여부 검증
+    if not doc_dir.exists() or not pdf_path.exists() or not meta_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # 2. 백그라운드 변환 작업 큐잉
+    background_tasks.add_task(process_conversion, document_id, request.format)
+
+    # 3. 비동기 처리 응답 (PROCESSING & 202 Accepted) 반환
+    return ConvertResponse(documentId=document_id, status="PROCESSING")
