@@ -1,8 +1,8 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
 from pathlib import Path
 
-from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse
-from app.services.file_service import save_uploaded_file, STORAGE_DIR
+from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse
+from app.services.file_service import save_uploaded_file, get_document_meta, STORAGE_DIR
 from app.services.convert_service import process_conversion
 
 router = APIRouter(
@@ -53,3 +53,24 @@ async def convert_document(document_id: str, request: ConvertRequest, background
 
     # 3. 비동기 처리 응답 (PROCESSING & 202 Accepted) 반환
     return ConvertResponse(documentId=document_id, status="PROCESSING")
+
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+async def get_document_status(document_id: str):
+    # 1. meta.json 읽기 (서비스 레이어에 위임)
+    try:
+        meta = get_document_meta(document_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to read document status")
+
+    # 2. 문서 없으면 404
+    if meta is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # 3. 상태 반환
+    return DocumentStatusResponse(
+        documentId=meta["documentId"],
+        fileName=meta["fileName"],
+        status=meta["status"],
+        format=meta.get("format"),
+        errorMessage=meta.get("errorMessage"),
+    )
