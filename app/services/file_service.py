@@ -44,3 +44,14 @@ def save_uploaded_file(file: UploadFile) -> str:
         if 'doc_dir' in locals() and doc_dir.exists():
             shutil.rmtree(doc_dir)
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+def get_document_meta(document_id: str) -> dict | None:
+    """meta.json을 읽어 딕셔너리로 반환한다. 문서가 없으면 None을 반환한다."""
+    doc_dir = STORAGE_DIR / document_id
+    meta_path = doc_dir / "meta.json"
+
+    if not doc_dir.exists() or not meta_path.exists():
+        return None
+
+    with open(meta_path, "r", encoding="utf-8") as f:
+        return json.load(f)
