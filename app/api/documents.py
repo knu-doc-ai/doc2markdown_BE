@@ -1,9 +1,10 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
 from pathlib import Path
 
-from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse
+from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse, ResultResponse
 from app.services.file_service import save_uploaded_file, get_document_meta, STORAGE_DIR
 from app.services.convert_service import process_conversion
+from app.services.result_service import get_document_result
 
 router = APIRouter(
     prefix="/documents",
@@ -74,3 +75,9 @@ async def get_document_status(document_id: str):
         format=meta.get("format"),
         errorMessage=meta.get("errorMessage"),
     )
+
+@router.get("/{document_id}/result", response_model=ResultResponse)
+async def get_document_result_api(document_id: str):
+    # 파일 읽기 로직은 service 계층에 위임
+    result = get_document_result(document_id)
+    return ResultResponse(**result)
