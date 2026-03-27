@@ -20,3 +20,10 @@ class DocumentStatusResponse(BaseModel):
     status: str  # UPLOADED | PROCESSING | SUCCESS | FAILED
     format: Optional[str] = None
     errorMessage: Optional[str] = None
+
+class ResultResponse(BaseModel):
+    documentId: str
+    status: str
+    format: Optional[str] = None
+    markdown: str
+    images: list[str]
