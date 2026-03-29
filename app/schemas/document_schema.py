@@ -27,3 +27,10 @@ class ResultResponse(BaseModel):
     format: Optional[str] = None
     markdown: str
     images: list[str]
+
+class MarkdownSaveRequest(BaseModel):
+    markdown: str
+
+class MarkdownSaveResponse(BaseModel):
+    documentId: str
+    status: str
