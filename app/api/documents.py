@@ -1,10 +1,11 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
 from pathlib import Path
 
-from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse, ResultResponse
+from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse, ResultResponse, MarkdownSaveRequest, MarkdownSaveResponse
 from app.services.file_service import save_uploaded_file, get_document_meta, STORAGE_DIR
 from app.services.convert_service import process_conversion
 from app.services.result_service import get_document_result
+from app.services.markdown_service import save_markdown
 
 router = APIRouter(
     prefix="/documents",
@@ -81,3 +82,13 @@ async def get_document_result_api(document_id: str):
     # 파일 읽기 로직은 service 계층에 위임
     result = get_document_result(document_id)
     return ResultResponse(**result)
+
+@router.put("/{document_id}/markdown", response_model=MarkdownSaveResponse)
+async def update_document_markdown(document_id: str, request: MarkdownSaveRequest):
+    # Markdown 파일 수정 저장 및 meta 정보 업데이트 로직은 Service에 위임
+    save_markdown(document_id, request.markdown)
+    return MarkdownSaveResponse(
+        documentId=document_id,
+        status="SAVED"
+    )
+
