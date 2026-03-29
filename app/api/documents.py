@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 
 from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse, ResultResponse, MarkdownSaveRequest, MarkdownSaveResponse
@@ -6,6 +7,7 @@ from app.services.file_service import save_uploaded_file, get_document_meta, STO
 from app.services.convert_service import process_conversion
 from app.services.result_service import get_document_result
 from app.services.markdown_service import save_markdown
+from app.services.download_service import create_download_zip_stream
 
 router = APIRouter(
     prefix="/documents",
@@ -90,5 +92,18 @@ async def update_document_markdown(document_id: str, request: MarkdownSaveReques
     return MarkdownSaveResponse(
         documentId=document_id,
         status="SAVED"
+    )
+
+@router.get("/{document_id}/download")
+async def download_document_result(document_id: str):
+    """최종 마크다운 파일과 변환된 이미지를 포함한 ZIP 압축 파일을 다운로드합니다."""
+    # 1. 압축 파일 스트림 생성
+    zip_stream = create_download_zip_stream(document_id)
+    
+    # 2. 파일 다운로드 응답 반환
+    return StreamingResponse(
+        zip_stream,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{document_id}.zip"'}
     )
 
