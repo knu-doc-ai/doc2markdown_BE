@@ -107,3 +107,12 @@ async def download_document_result(document_id: str):
         headers={"Content-Disposition": f'attachment; filename="{document_id}.zip"'}
     )
 
+from fastapi.responses import FileResponse
+
+@router.get("/{document_id}/images/{filename}")
+async def get_document_image(document_id: str, filename: str):
+    image_path = STORAGE_DIR / document_id / "images" / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path)
+
