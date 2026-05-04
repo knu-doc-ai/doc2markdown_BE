@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import re
 from pathlib import Path
 import requests
 
@@ -60,6 +62,14 @@ def process_conversion(document_id: str, target_format: MarkdownFormat):
         markdown_content = result_data.get("markdown", "")
         images = result_data.get("images", [])
 
+        # Markdown 텍스트 내의 로컬 경로를 웹 접속용 API 경로로 치환
+        api_base = os.getenv("API_BASE_URL", "http://localhost:8000")
+        markdown_content = re.sub(
+            r'!\[(.*?)\]\([^)]*/([^/]+\.png)\)', 
+            rf'![\1]({api_base}/documents/{document_id}/images/\2)', 
+            markdown_content
+        )
+
         # Markdown 파일 저장
         md_path = doc_dir / "original_markdown.md"
         with open(md_path, "w", encoding="utf-8") as md_file:
@@ -67,11 +77,19 @@ def process_conversion(document_id: str, target_format: MarkdownFormat):
             
         # 이미지 저장
         if images:
+            import base64
             images_dir = doc_dir / "images"
             images_dir.mkdir(parents=True, exist_ok=True)
             for idx, img in enumerate(images):
-                # 이 부분은 AI 서버 실제 이미지 반환 포맷에 맞춰 추후 구현
-                pass
+                try:
+                    filename = img.get("filename", f"image_{idx}.png")
+                    base64_data = img.get("data", "")
+                    if base64_data:
+                        img_path = images_dir / filename
+                        with open(img_path, "wb") as img_file:
+                            img_file.write(base64.b64decode(base64_data))
+                except Exception as e:
+                    logger.error(f"Failed to save image {idx}: {e}")
 
         # 5. 상태를 SUCCESS로 업데이트
         meta_data["status"] = "SUCCESS"
