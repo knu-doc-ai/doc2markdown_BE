@@ -1,0 +1,7 @@
+{
+  "documentId": "doc_1775886801_079313",
+  "fileName": "학술대회논문발표마일리지신청서.pdf",
+  "status": "FAILED",
+  "format": null,
+  "errorMessage": "AI server request failed: 500 Server Error: Internal Server Error for url: http://localhost:8001/ai/convert"
+}
