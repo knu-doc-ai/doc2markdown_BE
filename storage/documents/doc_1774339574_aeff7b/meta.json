@@ -1,7 +1,0 @@
-{
-  "documentId": "doc_1774339574_aeff7b",
-  "fileName": "test.pdf",
-  "status": "FAILED",
-  "format": null,
-  "errorMessage": "AI server request failed: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /ai/convert (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8001): Failed to establish a new connection: [Errno 61] Connection refused\"))"
-}
