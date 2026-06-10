@@ -1,0 +1,118 @@
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, BackgroundTasks
+from fastapi.responses import StreamingResponse
+from pathlib import Path
+
+from app.schemas.document_schema import DocumentUploadResponse, ConvertRequest, ConvertResponse, DocumentStatusResponse, ResultResponse, MarkdownSaveRequest, MarkdownSaveResponse
+from app.services.file_service import save_uploaded_file, get_document_meta, STORAGE_DIR
+from app.services.convert_service import process_conversion
+from app.services.result_service import get_document_result
+from app.services.markdown_service import save_markdown
+from app.services.download_service import create_download_zip_stream
+
+router = APIRouter(
+    prefix="/documents",
+    tags=["Documents"]
+)
+
+@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_document(file: UploadFile = File(...)):
+    # 1. 파일 존재 여부 확인 (UploadFile이 None인 경우는 FastAPI가 기본으로 422 언프로세서블 엔티티 에러를 내지만, 직접 처리할 수도 있음)
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="File is missing")
+        
+    # 2. 확장자 및 Content-Type 검증
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
+        
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Invalid content type. Must be application/pdf")
+
+    # 3. 파일 저장 및 메타데이터 생성 (Service 로직 호출)
+    try:
+        document_id = save_uploaded_file(file)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to save the uploaded file")
+
+    # 4. 성공 응답 반환
+    return DocumentUploadResponse(
+        documentId=document_id,
+        fileName=file.filename,
+        status="UPLOADED"
+    )
+
+@router.post("/{document_id}/convert", response_model=ConvertResponse, status_code=status.HTTP_202_ACCEPTED)
+async def convert_document(document_id: str, request: ConvertRequest, background_tasks: BackgroundTasks):
+    doc_dir = STORAGE_DIR / document_id
+    pdf_path = doc_dir / "original.pdf"
+    meta_path = doc_dir / "meta.json"
+
+    # 1. 문서 및 파일 존재 여부 검증
+    if not doc_dir.exists() or not pdf_path.exists() or not meta_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # 2. 백그라운드 변환 작업 큐잉
+    background_tasks.add_task(process_conversion, document_id, request.format)
+
+    # 3. 비동기 처리 응답 (PROCESSING & 202 Accepted) 반환
+    return ConvertResponse(documentId=document_id, status="PROCESSING")
+
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+async def get_document_status(document_id: str):
+    # 1. meta.json 읽기 (서비스 레이어에 위임)
+    try:
+        meta = get_document_meta(document_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to read document status")
+
+    # 2. 문서 없으면 404
+    if meta is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # 3. 상태 반환
+    return DocumentStatusResponse(
+        documentId=meta["documentId"],
+        fileName=meta["fileName"],
+        status=meta["status"],
+        format=meta.get("format"),
+        errorMessage=meta.get("errorMessage"),
+    )
+
+@router.get("/{document_id}/result", response_model=ResultResponse)
+async def get_document_result_api(document_id: str):
+    # 파일 읽기 로직은 service 계층에 위임
+    result = get_document_result(document_id)
+    return ResultResponse(**result)
+
+@router.put("/{document_id}/markdown", response_model=MarkdownSaveResponse)
+async def update_document_markdown(document_id: str, request: MarkdownSaveRequest):
+    # Markdown 파일 수정 저장 및 meta 정보 업데이트 로직은 Service에 위임
+    save_markdown(document_id, request.markdown)
+    return MarkdownSaveResponse(
+        documentId=document_id,
+        status="SAVED"
+    )
+
+@router.get("/{document_id}/download")
+async def download_document_result(document_id: str):
+    """최종 마크다운 파일과 변환된 이미지를 포함한 ZIP 압축 파일을 다운로드합니다."""
+    # 1. 압축 파일 스트림 생성
+    zip_stream = create_download_zip_stream(document_id)
+    
+    # 2. 파일 다운로드 응답 반환
+    return StreamingResponse(
+        zip_stream,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{document_id}.zip"'}
+    )
+
+from fastapi.responses import FileResponse
+
+@router.get("/{document_id}/images/{filename}")
+async def get_document_image(document_id: str, filename: str):
+    image_path = STORAGE_DIR / document_id / "images" / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path)
+
